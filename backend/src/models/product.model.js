@@ -55,7 +55,7 @@ const productSchema = new mongoose.Schema(
           type: Map,
           of: String,
         },
-        price:{
+        price: {
           amount: {
             type: Number,
             required: true,
@@ -66,7 +66,7 @@ const productSchema = new mongoose.Schema(
             required: true,
             default: "INR",
           },
-        }
+        },
       },
     ],
   },

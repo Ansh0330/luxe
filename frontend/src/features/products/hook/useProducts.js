@@ -9,6 +9,7 @@ import {
   getSellerProducts,
   getAllProducts,
   getProductById,
+  addProductVariant,
 } from "../service/products.api";
 import { useDispatch } from "react-redux";
 
@@ -64,10 +65,23 @@ export const useProducts = () => {
     }
   };
 
+  const handleAddProductVariant = async (productId,newProductVariant) =>{
+    dispatch(setLoading(true))
+    try {
+      const data = await addProductVariant(productId,newProductVariant)
+      return data
+    } catch (error) {
+      dispatch(setError(error))
+    } finally {
+      dispatch(setLoading(false))
+    }
+  }
+
   return {
     handleCreateProduct,
     handleGetSellerProducts,
     handleGetAllProducts,
     handleGetProductById,
+    handleAddProductVariant
   };
 };

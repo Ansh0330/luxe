@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { isSeller } from "../middlewares/auth.middleware.js";
 import {
+  addProductVariant,
   createProduct,
   getAllProducts,
   getProductById,
@@ -57,6 +58,6 @@ productsRouter.get("/detail/:productId", getProductById);
  * @access Private (Seller only)
 */
 
-productsRouter.post("/:productId/variants", isSeller, upload.array("images", 7), createProductValidator, );
+productsRouter.post("/:productId/variants", isSeller, upload.array("images", 7), addProductVariant);
 
 export default productsRouter;

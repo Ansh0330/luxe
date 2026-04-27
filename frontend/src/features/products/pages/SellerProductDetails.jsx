@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useProducts } from "../hook/useProducts";
 import { useParams } from "react-router";
-import Navbar from "../../common/components/Navbar";
+
 
 // Helper icons
 const PlusIcon = () => (

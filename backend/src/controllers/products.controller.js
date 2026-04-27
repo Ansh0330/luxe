@@ -49,7 +49,9 @@ export const getSellerProducts = async (req, res) => {
   try {
     const seller = req.user; // Assuming the authenticated user is available in req.user
 
-    const products = await productModel.find({ sellerId: seller.id }).populate("sellerId", "fullname email"); // Populate seller details (name and email)
+    const products = await productModel
+      .find({ sellerId: seller.id })
+      .populate("sellerId", "fullname email"); // Populate seller details (name and email)
 
     res.status(200).json({
       success: true,
@@ -84,7 +86,9 @@ export const getAllProducts = async (req, res) => {
 export const getProductById = async (req, res) => {
   try {
     const { productId } = req.params;
-    const product = await productModel.findById(productId).populate("sellerId", "fullname email"); // Populate seller details (name and email)
+    const product = await productModel
+      .findById(productId)
+      .populate("sellerId", "fullname email"); // Populate seller details (name and email)
 
     if (!product) {
       return res.status(404).json({
@@ -100,6 +104,71 @@ export const getProductById = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching product by ID:", error);
-    res.status(500).json({ success: false, message: "Error fetching product by ID" });
+    res
+      .status(500)
+      .json({ success: false, message: "Error fetching product by ID" });
   }
-}
+};
+
+export const addProductVariant = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    const product = await productModel.findOne({
+      _id: productId,
+      sellerId: req.user.id, // Ensure the product belongs to the authenticated seller
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    const files = req.files; // Assuming the images are sent as multipart/form-data
+    const images = [];
+
+    if (files && files.length > 0) {
+      await Promise.all(
+        files.map(async (file) => {
+          const imageUrl = await uploadImage({
+            buffer: file.buffer,
+            filename: file.originalname,
+          });
+          images.push(imageUrl);
+        }),
+      );
+    }
+
+    const price = req.body.priceAmount ? parseFloat(req.body.priceAmount) : ""; // Ensure price is stored as a number
+
+    const stock = req.body.stock ? parseInt(req.body.stock) : ""; // Ensure stock is stored as a number
+    const attributes = req.body.attributes
+      ? JSON.parse(req.body.attributes)
+      : ""; // Parse attributes if provided
+
+    product.variants.push({
+      images,
+      price: {
+        amount: price || product.price.amount, // Use the variant price if provided, otherwise fallback to the main product price
+        currency: req.body.priceCurrency || product.price.currency, // You can make this dynamic based on your requirements
+      },
+      stock,
+      attributes,
+    });
+
+    await product.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Product variant added successfully",
+      product,
+    });
+  } catch (error) {
+    console.log("Error in add product variant", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Error adding product variant" });
+  }
+};
