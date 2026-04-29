@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useProducts } from "../hook/useProducts";
 import { useSelector } from "react-redux";
@@ -11,6 +11,7 @@ const ProductDetail = () => {
 
   const [product, setProduct] = useState(null);
   const [selectedImage, setSelectedImage] = useState(0);
+  const [selectedAttributes, setSelectedAttributes] = useState({});
   const { handleGetProductById } = useProducts();
 
   const fetchProductDetails = async () => {
@@ -26,16 +27,92 @@ const ProductDetail = () => {
     fetchProductDetails();
   }, [productId]);
 
+  const activeVariant = useMemo(() => {
+    if (!product?.variants || product.variants.length === 0) return null;
+    return product.variants.find((v) => {
+      if (!v.attributes) return false;
+      const vKeys = Object.keys(v.attributes);
+      const sKeys = Object.keys(selectedAttributes);
+      const isMatch = vKeys.every((k) => v.attributes[k] === selectedAttributes[k]);
+      return vKeys.length === sKeys.length && isMatch;
+    });
+  }, [product, selectedAttributes]);
+
+  const availableAttributes = useMemo(() => {
+    if (!product?.variants) return {};
+    const attrs = {};
+    product.variants.forEach((variant) => {
+      if (variant.attributes) {
+        Object.entries(variant.attributes).forEach(([key, value]) => {
+          if (!attrs[key]) attrs[key] = new Set();
+          attrs[key].add(value);
+        });
+      }
+    });
+    Object.keys(attrs).forEach((key) => {
+      attrs[key] = Array.from(attrs[key]);
+    });
+    return attrs;
+  }, [product]);
+
+  useEffect(() => {
+    setSelectedImage(0);
+  }, [activeVariant]);
+
+  const handleAttributeChange = (attrName, value) => {
+    // If the selected value is clicked again, deselect it to return to the original state
+    if (selectedAttributes[attrName] === value) {
+      const newAttrs = { ...selectedAttributes };
+      delete newAttrs[attrName];
+      setSelectedAttributes(newAttrs);
+      return;
+    }
+
+    const newAttrs = { ...selectedAttributes, [attrName]: value };
+
+    const exactMatch = product.variants.find((v) => {
+      const vAttrs = v.attributes || {};
+      return (
+        Object.keys(newAttrs).every((k) => newAttrs[k] === vAttrs[k]) &&
+        Object.keys(vAttrs).every((k) => newAttrs[k] === vAttrs[k])
+      );
+    });
+
+    if (exactMatch) {
+      setSelectedAttributes(exactMatch.attributes);
+    } else {
+      const fallbackVariant = product.variants.find(
+        (v) => v.attributes && v.attributes[attrName] === value
+      );
+      if (fallbackVariant) {
+        setSelectedAttributes(fallbackVariant.attributes);
+      } else {
+        setSelectedAttributes(newAttrs);
+      }
+    }
+  };
+
+  const displayImages =
+    activeVariant?.images && activeVariant.images.length > 0
+      ? activeVariant.images
+      : product?.images && product.images.length > 0
+        ? product.images
+        : [];
+
+  const displayPrice = activeVariant?.price?.amount
+    ? activeVariant.price
+    : product?.price;
+
   const handleNextImage = () => {
-    if (product && product.images && product.images.length > 0) {
-      setSelectedImage((prev) => (prev + 1) % product.images.length);
+    if (displayImages && displayImages.length > 0) {
+      setSelectedImage((prev) => (prev + 1) % displayImages.length);
     }
   };
 
   const handlePrevImage = () => {
-    if (product && product.images && product.images.length > 0) {
+    if (displayImages && displayImages.length > 0) {
       setSelectedImage(
-        (prev) => (prev - 1 + product.images.length) % product.images.length,
+        (prev) => (prev - 1 + displayImages.length) % displayImages.length,
       );
     }
   };
@@ -52,6 +129,7 @@ const ProductDetail = () => {
       </div>
     );
   }
+  console.log(product)
 
   return (
     <div className="bg-[#131313] text-[#e5e2e1] font-['Manrope'] min-h-screen overflow-x-hidden selection:bg-[#ffd700] selection:text-[#3a3000]">
@@ -65,9 +143,9 @@ const ProductDetail = () => {
           <div className="flex-grow flex items-center justify-center p-6 md:p-10">
             {/* The image is constrained by max-height so it won't push content below the viewport fold */}
             <div className="relative w-full aspect-[4/5] max-w-[24rem] xl:max-w-[28rem] max-h-[60vh] mx-auto group/image">
-              {product.images && product.images.length > 0 ? (
+              {displayImages && displayImages.length > 0 ? (
                 <img
-                  src={product.images[selectedImage]?.url}
+                  src={displayImages[selectedImage]?.url}
                   alt={product.title}
                   className="w-full h-full object-cover rounded-xl shadow-2xl transition-all duration-500"
                 />
@@ -89,7 +167,7 @@ const ProductDetail = () => {
               </div>
 
               {/* Carousel Controls (Hidden until Hover) */}
-              {product.images && product.images.length > 1 && (
+              {displayImages && displayImages.length > 1 && (
                 <div className="absolute inset-0 flex items-center justify-between px-3 opacity-0 group-hover/image:opacity-100 transition-opacity duration-500 pointer-events-none z-10">
                   <button
                     onClick={handlePrevImage}
@@ -113,9 +191,9 @@ const ProductDetail = () => {
           </div>
 
           {/* Thumbnails */}
-          {product.images && product.images.length > 1 && (
+          {displayImages && displayImages.length > 1 && (
             <div className="px-8 pb-8 overflow-x-auto no-scrollbar flex space-x-4 justify-center">
-              {product.images.map((img, index) => (
+              {displayImages.map((img, index) => (
                 <div
                   key={img._id || index}
                   onClick={() => setSelectedImage(index)}
@@ -133,9 +211,9 @@ const ProductDetail = () => {
         </section>
 
         {/* Right Side: Details Section */}
-        <section className="w-full md:w-1/2 bg-[#131313] flex flex-col justify-center px-8 md:px-20 relative pt-24 pb-12">
-          <div className="max-w-xl mx-auto md:mx-0 relative z-10">
-            <div className="space-y-2 mb-8">
+        <section className="w-full md:w-1/2 bg-[#131313] flex flex-col px-8 md:px-20 relative pt-28 pb-12 md:pt-36 md:pb-24">
+          <div className="max-w-xl w-full mx-auto md:mx-0 relative z-10 my-auto">
+            <div className="space-y-2 mb-6">
               <p className="font-['Manrope'] text-[0.7rem] tracking-[0.4em] uppercase text-[#dbc677]">
                 Curated by {product.sellerId?.fullname || "Aurelian Studio"}
               </p>
@@ -144,20 +222,66 @@ const ProductDetail = () => {
               </h1>
             </div>
 
-            <div className="mb-8">
+            <div className="mb-6">
               <p className="text-2xl font-bold text-[#ffd700] tracking-tight">
-                {product.price?.currency === "USD"
+                {displayPrice?.currency === "USD"
                   ? "$"
-                  : product.price?.currency === "INR"
+                  : displayPrice?.currency === "INR"
                     ? "₹"
-                    : product.price?.currency}
-                {product.price?.amount?.toLocaleString() || "4,200.00"}
+                    : displayPrice?.currency}
+                {displayPrice?.amount?.toLocaleString() || "4,200.00"}
               </p>
               <div className="h-px w-12 bg-[#4d4732]/30 mt-4"></div>
             </div>
 
-            <div className="space-y-6 mb-10">
-              <p className="text-base text-[#d0c6ab] leading-relaxed tracking-wide font-light line-clamp-4">
+            {/* Options/Variants */}
+            {Object.keys(availableAttributes).length > 0 && (
+              <div className="mb-8 flex flex-col gap-6">
+                {Object.entries(availableAttributes).map(([attrName, values]) => (
+                  <div key={attrName}>
+                    <h3 className="text-[0.65rem] tracking-[0.2em] uppercase text-[#999077] mb-3">
+                      {attrName}
+                    </h3>
+                    <div className="flex flex-wrap gap-3">
+                      {values.map((val) => {
+                        const isSelected = selectedAttributes[attrName] === val;
+                        return (
+                          <button
+                            key={val}
+                            onClick={() => handleAttributeChange(attrName, val)}
+                            className={`px-5 py-2.5 text-[0.7rem] uppercase tracking-widest font-['Manrope'] font-bold transition-all duration-300 border rounded-full ${
+                              isSelected
+                                ? "border-[#ffd700] bg-[#ffd700]/10 text-[#ffd700] shadow-[0_0_15px_rgba(255,215,0,0.15)]"
+                                : "border-[#4d4732]/40 text-[#d0c6ab] hover:border-[#ffd700]/50 hover:bg-[#2a2a2a]"
+                            }`}
+                          >
+                            {val}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Stock Information */}
+            {activeVariant && activeVariant.stock !== undefined && (
+              <div className="mb-6">
+                <span
+                  className={`text-[0.65rem] tracking-[0.2em] uppercase font-bold tracking-widest ${
+                    activeVariant.stock > 0 ? "text-[#a3b18a]" : "text-[#e07a5f]"
+                  }`}
+                >
+                  {activeVariant.stock > 0
+                    ? `${activeVariant.stock} IN STOCK`
+                    : "OUT OF STOCK"}
+                </span>
+              </div>
+            )}
+
+            <div className="space-y-4 mb-8">
+              <p className="text-base text-[#d0c6ab] leading-relaxed tracking-wide font-light line-clamp-3">
                 {product.description}
               </p>
 
@@ -193,7 +317,7 @@ const ProductDetail = () => {
             </div>
 
             {/* Footer-like details */}
-            <div className="mt-12 flex space-x-10 border-t border-[#4d4732]/10 pt-6">
+            <div className="mt-8 flex space-x-10 border-t border-[#4d4732]/10 pt-4">
               <div>
                 <span className="block text-[0.6rem] uppercase tracking-widest text-[#999077] mb-1">
                   Authenticity
